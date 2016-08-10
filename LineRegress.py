@@ -13,7 +13,8 @@ from numpy import mean, median
 import csv
 
 #function to perform the linear regression and store the results in a dictionary
-def lineRegress(xArray, yArray):
+def lineRegress(linePoints):
+    xArray, yArray = _pointsToVectors(linePoints)
     slope, intercept, r_value, p_value, std_err = stats.linregress(xArray, yArray)
     result  = {}
     result["slope"] = slope
@@ -25,15 +26,22 @@ def lineRegress(xArray, yArray):
 
 #helper function to create lines from slope, intercept data
 def _getGraphLine(slope, intercept, xVctr):
-    yVctr = []
+    pointVctr = []
     for x in xVctr:
-        yVctr.append(slope*x + intercept)
-    return yVctr
+        pointVctr.append((x,slope*x + intercept))
+    return pointVctr
+
+
+def _pointsToVectors(points):
+    xVctr = [point[0] for point in points]
+    yVctr = [point[1] for point in points]
+    return xVctr, yVctr
+
 
 #function that implements the matplotlib and creates the graph object, also shows or saves the object to file
 #dest parameter:  if show graph is printed to screen using .show() otherwise expects a filename with extension and saves the file in that format as per .savefig()
-def createGraph(xVctr, yVctrs, title = None, xlab = None, yLab= None, colorVctr = None, styleVctr = None, dest = "show", xLim = None, yLim = None):
-    lineCount = len(yVctrs)
+def createGraph(lineArray, title = None, xlab = None, yLab= None, colorVctr = None, styleVctr = None, dest = "show", xLim = None, yLim = None):
+    lineCount = len(lineArray)
     if colorVctr and len(colorVctr) < lineCount:
         difference = lineCount-len(colorVctr)
         for  x in range(difference):
@@ -53,7 +61,8 @@ def createGraph(xVctr, yVctrs, title = None, xlab = None, yLab= None, colorVctr 
         if styleVctr:
             styleFlag = styleVctr[yVctrIdx]
         argFlag = colorFlag+styleFlag
-        yvctr = yVctrs[yVctrIdx]
+        xvctr, yvctr = _pointsToVectors(lineArray[yVctrIdx])
+
         xVctr = array(xVctr)
         yVctr = array(yvctr)
         plt.plot(xVctr,yVctr,argFlag)
@@ -76,19 +85,23 @@ def createGraph(xVctr, yVctrs, title = None, xlab = None, yLab= None, colorVctr 
 #method to get teh confidence interval around the Slope of the regression
 #uses the formula t((1-alpha/2):DoF)(s(b1))
 #alpha: desired probability
-#xVctr: an array of x values for the points of interest
-#yPoints: the y values of all points of interest, (indexes must correspond to those in xVctr)
+#linePoints: list of touples defining the x and y coordinates of a point
 #returns 3 variables, the slope of the regression, the intercept of the regression, and a touple containing the upper and lower bounds of the confidence interval of the slope
-def slopeConfidence(alpha, xVctr,yPoints):
-    if len(xVctr)<3:
-        regression = lineRegress(xVctr,yPoints)
+def slopeConfidence(alpha, linePoints):
+    if len(linePoints)>2:
+        return "Error: not enough points for calculation"
+    if len(linePoints)==2:
+        regression = lineRegress(linePoints)
         return regression["slope"], regression["intercept"],(regression["slope"],regression["slope"])
     #get linear regression for points
-    regression = lineRegress(xVctr,yPoints)
+    regression = lineRegress(linePoints)
     #get Tscore
-    tScore = stats.t.ppf(1-(alpha/2), len(yPoints)-2)
+    tScore = stats.t.ppf(1-(alpha/2), len(linePoints)-2)
+
+
     #get s(b1)  == (MSE)/sum(xi-mean(x))^2)
-    MSE = _MSE(regression["slope"], regression["intercept"],yPoints,xVctr)
+    xVctr, yVctr = _pointsToVectors(linePoints)
+    MSE = _MSE(regression["slope"], regression["intercept"],linePoints)
     xMean = mean(xVctr)
     xMeanDiffArray = []
     for x in xVctr:
@@ -109,12 +122,13 @@ def slopeConfidence(alpha, xVctr,yPoints):
 #yPoints: An array of the points used to create the regression
 #xVctr: an array of the values
 #returns MSE
-def _MSE(slope, intercept,yPoints, xVctr):
+def _MSE(slope, intercept,linePoints):
     errorArray = []
+
     #get  sigma error squared
-    for xVctrIdx in range(len(xVctr)):
-        xVal = xVctr[xVctrIdx]
-        yVal = yPoints[xVctrIdx]
+    for point in range(len(linePoints)):
+        xVal = point[0]
+        yVal = point[1]
         expectedY = slope * xVal + intercept
         difference  = yVal - expectedY
         squareDifference  = difference*difference
@@ -122,7 +136,7 @@ def _MSE(slope, intercept,yPoints, xVctr):
     errorSum = sum(errorArray)
 
     #devide by DoF (n-2)
-    MSE = errorSum/(len(xVctr)-2)
+    MSE = errorSum/(len(linePoints)-2)
     return MSE
 
 
@@ -140,11 +154,11 @@ def _getExpectedLineValue(vctr):
 #       if None(default) no line produced
 #       if value creates a line with that slope in red
 #       if "auto" creates a line with slope =  average slope of all lines
-def _NeRegressionGraphCalc(xVctr, yPoints, expectedSlope = None):
+def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
     #get linear regression stats for all datasets
     LineStats = []
-    for yVctr in yPoints:
-        data = lineRegress(xVctr,yVctr)
+    for line in dataVctrs:
+        data = lineRegress(line)
         LineStats.append(data)
 
 
@@ -169,13 +183,15 @@ def _NeRegressionGraphCalc(xVctr, yPoints, expectedSlope = None):
             expectedSlope = _getExpectedLineValue(slopes)
 
         #make expected line for plotting
-        lineVctrs.append(_getGraphLine(expectedSlope, expectedIntercept, xVctr))
+        #todo WTF do i do here??
+        lineVctrs.append(x,_getGraphLine(expectedSlope, expectedIntercept, xVctr))
         colorVctr.append("r")
         styleVctr.append("-")
 
     for statDict in LineStats:
         slope = statDict["slope"]
         intercept = statDict["intercept"]
+        #todo WTF do i do here??
         linePoints  = _getGraphLine(slope, intercept, xVctr)
         lineVctrs.append(linePoints)
         colorVctr.append("b")
@@ -183,34 +199,35 @@ def _NeRegressionGraphCalc(xVctr, yPoints, expectedSlope = None):
     return lineVctrs, colorVctr,styleVctr
 
 #combines linear regression and create graph into one function
-def neGraphMaker(xVctr, yPoints, expectedSlope = None,title = None, xlab = None, yLab= None, dest = "show", xLim = None, yLim = None):
-    lines, colors, styles = _NeRegressionGraphCalc(xVctr, yPoints, expectedSlope)
-    createGraph(xVctr, lines, colorVctr=colors, styleVctr=styles, title=title, xlab=xlab,yLab=yLab, dest=dest, xLim = xLim, yLim = yLim)
+def neGraphMaker(pointsVctrs, expectedSlope = None,title = None, xlab = None, yLab= None, dest = "show", xLim = None, yLim = None):
+    lines, colors, styles = _NeRegressionGraphCalc(pointsVctrs, expectedSlope)
+    createGraph(lines, colorVctr=colors, styleVctr=styles, title=title, xlab=xlab,yLab=yLab, dest=dest, xLim = xLim, yLim = yLim)
 
 #reads in data fron neEst file outputs
 def neFileRead(filename):
     fileBuffer = open(filename, "rb")
     replicateData = csv.DictReader(fileBuffer, delimiter="\t", quotechar="\"")
     dataDict = {}
+    popNum = 0
     for item in replicateData:
-        replicateNum = int(item['replicate_number'])
+        replicateNum = int(item['original_file'])
         popNum = int(item['pop'])
         neEst = float(item['est_ne'])
         if  not replicateNum in dataDict:
             dataDict[replicateNum] = {}
         dataDict[replicateNum][popNum] = neEst
     replicateKeys = dataDict.keys()
-    popKeys = dataDict[replicateKeys[0]].keys()
-    popKeys.sort()
     resultTable = []
     for replicate in replicateKeys:
         replicateVctr = []
         replicateDict = dataDict[replicate]
+        popKeys = replicateDict.keys()
+        popKeys.sort()
         for popKey in popKeys:
             #print popKey
-            replicateVctr.append(replicateDict[popKey])
+            replicateVctr.append((popKey,replicateDict[popKey]))
         resultTable.append(replicateVctr)
-    return popKeys,resultTable
+    return resultTable
 
 
 #Method to read in a graph config file and return a dictionary of
@@ -272,12 +289,12 @@ def neConfigRead(filename):
 #configFile filepath to configureation file containting parameteres for the graph (see example.cfg and example1.cfg,
 #   this parameter and all feilds in the file are optional with what i considered the most relevant/base defaults)
 def neGrapher(neFile, configFile):
-    xVals, yTable = neFileRead(neFile)
+    table = neFileRead(neFile)
     if not configFile:
         neGraphMaker(xVals,yTable)
         return True
     configs = neConfigRead(configFile)
-    neGraphMaker(xVals,yTable,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"])
+    neGraphMaker(table,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"])
 
 
 #master function for creating a table of confidence intervals form neEstimation data
@@ -289,12 +306,12 @@ def neGrapher(neFile, configFile):
 def neStats(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantValue = 0,testFlag = False):
     tableFormat = "{:<30}{:<30}{:<30}\n"
     tableString =tableFormat.format("Slope","Intercept","Confidence Interval")
-    xVals, yTable = neFileRead(neFile)
+    table = neFileRead(neFile)
     slopeVctr = []
     confidenceVctr = []
 
-    for yRecord in yTable:
-        slope, intercept, confidence  = slopeConfidence(confidenceAlpha,xVals,yRecord)
+    for record in table:
+        slope, intercept, confidence  = slopeConfidence(confidenceAlpha,record)
         tableString+=tableFormat.format(slope,intercept,confidence)
         slopeVctr.append(slope)
         confidenceVctr.append(confidence)
@@ -342,16 +359,19 @@ if __name__ == "__main__":
     #Perfect Positive Regression
     xVct = range(10)
     yVct  = range(10)
-    result = lineRegress(xVct,yVct)
+    table = zip(xVct,yVct)
+    result = lineRegress(table)
     assert result["slope"] == 1.0
     assert result["intercept"] == 0.0
     assert result["r_val"] ==1.0
     yVct = range(0,20,2)
+    table = zip(xVct,yVct)
     result = lineRegress(xVct, yVct)
     assert result["slope"] == 2.0
     assert result["intercept"] == 0.0
     assert result["r_val"] == 1.0
     yVct = range(10,20,1)
+    table = zip(xVct,yVct)
     result = lineRegress(xVct,yVct)
     assert result["slope"] == 1.0
     assert result["intercept"] == 10.0
@@ -361,17 +381,20 @@ if __name__ == "__main__":
     # Perfect Negative Regression
     xVct = range(10)
     yVct  = range(10,0,-1)
-    result = lineRegress(xVct,yVct)
+    table = zip(xVct,yVct)
+    result = lineRegress(table)
     assert result["slope"] == -1.0
     assert result["intercept"] == 10.0
     assert result["r_val"] == -1.0
     yVct = range(20,0,-2)
-    result = lineRegress(xVct,yVct)
+    table = zip(xVct,yVct)
+    result = lineRegress(table)
     assert result["slope"] == -2.0
     assert result["intercept"] == 20.0
     assert result["r_val"] ==-1.0
     yVct = range(0,-10,-1)
-    result = lineRegress(xVct,yVct)
+    table = zip(xVct,yVct)
+    result = lineRegress(table)
     assert result["slope"] == -1.0
     assert result["intercept"] == 0.0
     assert result["r_val"] ==-1.0
@@ -386,19 +409,22 @@ if __name__ == "__main__":
     print "Confidence Tests "
     xVct = range(5)
     yVct  = range(5)
-    print slopeConfidence(0.05,xVct,yVct)
+    table = zip(xVct,yVct)
+    print slopeConfidence(0.05,table)
     xVct = range(5)
     yVct  = range(5)
     yVct[0]-=1
-    print slopeConfidence(0.01,xVct,yVct)
-    print slopeConfidence(0.05, xVct, yVct)
-    print slopeConfidence(0.1,xVct,yVct)
+    table = zip(xVct,yVct)
+    print slopeConfidence(0.01,table)
+    print slopeConfidence(0.05, table)
+    print slopeConfidence(0.1,table)
     xVct = range(10)
     yVct  = range(10)
     yVct[0]-=1
-    print slopeConfidence(0.01,xVct,yVct)
-    print slopeConfidence(0.05, xVct, yVct)
-    print slopeConfidence(0.1,xVct,yVct)
+    table = zip(xVct,yVct)
+    print slopeConfidence(0.01,table)
+    print slopeConfidence(0.05, table)
+    print slopeConfidence(0.1,table)
     print "Confidence Tests passed"
 
     print"getLineGraph Tests"
