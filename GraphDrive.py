@@ -1,4 +1,5 @@
 import glob
+import os
 import sys
 
 import LineRegress
@@ -8,10 +9,17 @@ def getFiles(pattern):
     files =glob.glob(pattern)
     return files
 
-
 if __name__ == "__main__":
     neFile = sys.argv[1]
     configFile = None
     if len(sys.argv) ==3:
-        configFile = sys.argv[2]
-    LineRegress.neGrapher(neFile,configFile)
+        configName = sys.argv[2]
+        if not os.path.isfile(configName):
+            print configName +"does not exist, using defaults"
+        else:
+            configFile = configName
+    if os.path.isfile(neFile):
+        LineRegress.neGrapher(neFile,configFile)
+        LineRegress.neStats(neFile,0.1)
+    else:
+        print "Ne Datatable File not Found"

@@ -51,10 +51,8 @@ def createGraph(lineArray, title = None, xlab = None, yLab= None, colorVctr = No
         for  x in range(difference):
             styleVctr.append(styleVctr[len(styleVctr)-1])
 
-    if not colorVctr:
-        colorFlag = ""
-    if not styleVctr:
-        styleFlag = ""
+    colorFlag = ""
+    styleFlag = ""
     for yVctrIdx in range(lineCount):
         if colorVctr:
             colorFlag = colorVctr[yVctrIdx]
@@ -63,7 +61,7 @@ def createGraph(lineArray, title = None, xlab = None, yLab= None, colorVctr = No
         argFlag = colorFlag+styleFlag
         xvctr, yvctr = _pointsToVectors(lineArray[yVctrIdx])
 
-        xVctr = array(xVctr)
+        xVctr = array(xvctr)
         yVctr = array(yvctr)
         plt.plot(xVctr,yVctr,argFlag)
     if title:
@@ -88,7 +86,7 @@ def createGraph(lineArray, title = None, xlab = None, yLab= None, colorVctr = No
 #linePoints: list of touples defining the x and y coordinates of a point
 #returns 3 variables, the slope of the regression, the intercept of the regression, and a touple containing the upper and lower bounds of the confidence interval of the slope
 def slopeConfidence(alpha, linePoints):
-    if len(linePoints)>2:
+    if len(linePoints)<2:
         return "Error: not enough points for calculation"
     if len(linePoints)==2:
         regression = lineRegress(linePoints)
@@ -126,7 +124,7 @@ def _MSE(slope, intercept,linePoints):
     errorArray = []
 
     #get  sigma error squared
-    for point in range(len(linePoints)):
+    for point in linePoints:
         xVal = point[0]
         yVal = point[1]
         expectedY = slope * xVal + intercept
@@ -161,6 +159,15 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
         data = lineRegress(line)
         LineStats.append(data)
 
+    allpoints = [val for sublist in dataVctrs  for val in sublist]
+    xVals, yVals = zip(*allpoints)
+
+    minX = min(xVals)
+    maxX = max(xVals)
+    xVctr = list(set(allpoints))
+    if maxX - minX>1:
+
+        xVctr = range(minX,maxX)
 
     lineVctrs =[]
     colorVctr = []
@@ -184,7 +191,7 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
 
         #make expected line for plotting
         #todo WTF do i do here??
-        lineVctrs.append(x,_getGraphLine(expectedSlope, expectedIntercept, xVctr))
+        lineVctrs.append(_getGraphLine(expectedSlope, expectedIntercept, xVctr))
         colorVctr.append("r")
         styleVctr.append("-")
 
@@ -210,7 +217,7 @@ def neFileRead(filename):
     dataDict = {}
     popNum = 0
     for item in replicateData:
-        replicateNum = int(item['original_file'])
+        replicateNum = item['original_file']
         popNum = int(item['pop'])
         neEst = float(item['est_ne'])
         if  not replicateNum in dataDict:
@@ -224,8 +231,9 @@ def neFileRead(filename):
         popKeys = replicateDict.keys()
         popKeys.sort()
         for popKey in popKeys:
-            #print popKey
-            replicateVctr.append((popKey,replicateDict[popKey]))
+            if popKey !=1:
+                #print popKey
+                replicateVctr.append((popKey,replicateDict[popKey]))
         resultTable.append(replicateVctr)
     return resultTable
 
@@ -291,7 +299,7 @@ def neConfigRead(filename):
 def neGrapher(neFile, configFile):
     table = neFileRead(neFile)
     if not configFile:
-        neGraphMaker(xVals,yTable)
+        neGraphMaker(table)
         return True
     configs = neConfigRead(configFile)
     neGraphMaker(table,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"])
@@ -366,13 +374,13 @@ if __name__ == "__main__":
     assert result["r_val"] ==1.0
     yVct = range(0,20,2)
     table = zip(xVct,yVct)
-    result = lineRegress(xVct, yVct)
+    result = lineRegress(table)
     assert result["slope"] == 2.0
     assert result["intercept"] == 0.0
     assert result["r_val"] == 1.0
     yVct = range(10,20,1)
     table = zip(xVct,yVct)
-    result = lineRegress(xVct,yVct)
+    result = lineRegress(table)
     assert result["slope"] == 1.0
     assert result["intercept"] == 10.0
     assert result["r_val"] ==1.0
@@ -430,56 +438,61 @@ if __name__ == "__main__":
     print"getLineGraph Tests"
     xVct = range(10)
 
-    assert _getGraphLine(0.0, 0.0, xVct) == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert _getGraphLine(0.0, 0.0, xVct) == [(0,0.0), (1,0.0),(2, 0.0), (3,0.0), (4,0.0), (5,0.0), (6,0.0), (7,0.0), (8,0.0), (9,0.0)]
     print "slope 0 test passed"
-    assert _getGraphLine(0.0, 6.0, xVct) == [6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0]
+    assert _getGraphLine(0.0, 6.0, xVct) == [(0,6.0), (1,6.0),(2, 6.0), (3,6.0), (4,6.0), (5,6.0), (6,6.0), (7,6.0), (8,6.0), (9,6.0)]
     print "slope 0 intercept !=0 test passed"
-    assert _getGraphLine(1.0, 0.0, xVct) == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    assert _getGraphLine(1.0, 0.0, xVct) == [(0,0.0), (1,1.0), (2,2.0), (3,3.0), (4,4.0), (5,5.0), (6,6.0), (7,7.0), (8,8.0), (9,9.0)]
     print"x=y case pass"
-    assert _getGraphLine(1.0, 1.0, xVct) == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    assert _getGraphLine(1.0, 1.0, xVct) == [(0,1.0),(1, 2.0), (2,3.0), (3,4.0), (4,5.0), (5,6.0), (6,7.0), (7,8.0), (8,9.0), (9,10.0)]
     print "intercept != 0 test passed"
-    assert _getGraphLine(4.0, 1.0, xVct) == [1.0, 5.0, 9.0, 13.0, 17.0, 21.0, 25.0, 29.0, 33.0, 37.0]
+    assert _getGraphLine(4.0, 1.0, xVct) == [(0,1.0), (1,5.0), (2,9.0), (3,13.0), (4,17.0), (5,21.0), (6,25.0), (7,29.0), (8,33.0), (9,37.0)]
     print "slope 4 intercept 1 test passed"
-    assert _getGraphLine(-1.0, 0.0, xVct) == [0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -9.0]
+    assert _getGraphLine(-1.0, 0.0, xVct) == [(0,0.0), (1,-1.0), (2,-2.0), (3,-3.0), (4,-4.0), (5,-5.0), (6,-6.0), (7,-7.0), (8,-8.0), (9,-9.0)]
     print "negative slope test passed"
-    assert _getGraphLine(-2.0, 3.0, xVct) == [3.0, 1.0, -1.0 , -3.0, -5.0, -7.0, -9.0, -11.0, -13.0, -15.0]
+    assert _getGraphLine(-2.0, 3.0, xVct) == [(0,3.0), (1,1.0), (2,-1.0 ), (3,-3.0), (4,-5.0), (5,-7.0), (6,-9.0), (7,-11.0), (8,-13.0), (9,-15.0)]
     print "negative slope intercept !=0 test passed"
-    assert _getGraphLine(2.0, -3.0, xVct) == [-3.0, -1.0, 1.0 , 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0]
+    assert _getGraphLine(2.0, -3.0, xVct) == [(0,-3.0), (1,-1.0), (2,1.0 ), (3,3.0), (4,5.0), (5,7.0), (6,9.0), (7,11.0), (8,13.0), (9,15.0)]
     print "negative intercept !=0 test passed"
 
 
     xVct = range(3,13,1)
-    assert _getGraphLine(1.0, 0.0, xVct) == [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]
+    assert _getGraphLine(1.0, 0.0, xVct) == [(3,3.0), (4,4.0), (5,5.0), (6,6.0), (7,7.0), (8,8.0), (9,9.0), (10,10.0), (11,11.0), (12,12.0)]
     print "non 0 positive x start passed"
     xVct = range(3,13,1)
-    assert _getGraphLine(1.0, -3.0, xVct) == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    yVct = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    assert _getGraphLine(1.0, -3.0, xVct) == zip(xVct,yVct)
     print "non 0 x start non 0 intercept passed"
 
     xVct = range(10,0,-1)
-    assert _getGraphLine(1.0, 0.0, xVct) == [10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]
+    yVct = [10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]
+    assert _getGraphLine(1.0, 0.0, xVct) == zip(xVct,yVct)
     print "negative step x axis passed"
 
     xVct = range(0, -10, -1)
-    assert _getGraphLine(1.0, 0.0, xVct) == [0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -9.0]
+    yVct = [0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -9.0]
+    assert _getGraphLine(1.0, 0.0, xVct) == zip(xVct, yVct)
     print "negative step x axis passed"
 
     xVct = range(-7,3,1)
-    assert _getGraphLine(1.0, 0.0, xVct) == [-7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0]
+    yVct = [-7.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0]
+    assert _getGraphLine(1.0, 0.0, xVct) == zip(xVct, yVct)
     print "negative start x axis passed"
 
     xVct = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
-    assert _getGraphLine(1.0, 0.0, xVct) == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    yVct = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    assert _getGraphLine(1.0, 0.0, xVct) == zip(xVct, yVct)
     print "non integer x axis passed"
 
     print "getGraphLine Passed"
 
 
     xVct = range(0,20,2)
-    yVcts = []
-    yVcts.append(_getGraphLine(-0.1, 0, xVct))
-    yVcts.append(_getGraphLine(-0.005, 0, xVct))
-    yVcts.append(_getGraphLine(-0.15, 10, xVct))
-    yVcts.append(_getGraphLine(0.25, 10, xVct))
+    table = []
+    table.append(_getGraphLine(-0.1, 0, xVct))
+    table.append(_getGraphLine(-0.005, 0, xVct))
+    table.append(_getGraphLine(-0.15, 10, xVct))
+    table.append(_getGraphLine(0.25, 10, xVct))
 
 
     print "createGraph Test"
@@ -488,40 +501,40 @@ if __name__ == "__main__":
     title = "testTitle"
     x = "TestX"
     y = "TestY"
-    createGraph(xVct,yVcts,colorVctr=colorStyles, styleVctr=lineStyles, title=title, xlab=x, yLab=y)
+    createGraph(table,colorVctr=colorStyles, styleVctr=lineStyles, title=title, xlab=x, yLab=y)
 
 
     print "NeRegressionGraphMaker"
 
     testYs = [[0,0,0,0,0],[1,2,3,4,5],[-1,-2,-3,-4,-5],[1,3,1,3,1]]
     testX = [1,2,3,4,5]
+    testTable =[]
+    for yVct in testYs:
+        testTable.append(zip(testX,yVct))
 
-    lines, color, styles = _NeRegressionGraphCalc(testX, testYs)
+    lines, color, styles = _NeRegressionGraphCalc(testTable)
 
-    createGraph(testX,lines,colorVctr=color,styleVctr=styles)
+    createGraph(lines,colorVctr=color,styleVctr=styles)
 
     testYs = [[0,0,0,0,0],[1,2,3,4,5],[-1,-2,-3,-4,-5],[1,3,0,2,-1]]
-    lines, color, styles = _NeRegressionGraphCalc(testX, testYs, -0.333)
+    for yVct in testYs:
+        testTable.append(zip(testX,yVct))
+    lines, color, styles = _NeRegressionGraphCalc(testTable, -0.333)
 
-    createGraph(testX,lines,colorVctr=color,styleVctr=styles)
+    createGraph(lines,colorVctr=color,styleVctr=styles)
 
     testArray = [2,5,3,6,1,4]
     testArray.sort()
     print  testArray
 
-    xVals, yTable = neFileRead("testData.txt")
+    table = neFileRead("testData.txt")
 
-    print xVals
-    print yTable
-    xVals = xVals[1:]
-    temp = yTable[0]
-
-    yTable = [temp[1:]]
-    print xVals
-    print yTable
+    print table
 
 
-    neGraphMaker(xVals,yTable)
+
+
+    neGraphMaker(table)
 
     configwrite= ConfigParser.ConfigParser()
     configwrite.add_section("labels")
