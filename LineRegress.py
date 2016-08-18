@@ -234,7 +234,7 @@ def neFileRead(filename, firstVal = 0):
         popKeys = replicateDict.keys()
         popKeys.sort()
         for popKey in popKeys:
-            if popKey <firstVal:
+            if popKey >=firstVal:
                 #print popKey
                 replicateVctr.append((popKey,replicateDict[popKey]))
         resultTable.append(replicateVctr)
