@@ -580,6 +580,10 @@ if __name__ == "__main__":
     configwrite.add_section("comparison")
     configwrite.set("comparison", "auto", "True")
     configwrite.set("comparison", "expectedSlope", -0.1)
+    configwrite.add_section("data")
+    configwrite.set("data", "startCollect", 2)
+    configwrite.add_section("confidence")
+    configwrite.set("confidence","alpha",0.1)
     configwrite.write(open("example1.cfg","w"))
 
     print neConfigRead("example1.cfg")
