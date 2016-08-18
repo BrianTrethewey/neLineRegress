@@ -20,6 +20,6 @@ if __name__ == "__main__":
             configFile = configName
     if os.path.isfile(neFile):
         LineRegress.neGrapher(neFile,configFile)
-        LineRegress.neStats(neFile,0.1)
+        LineRegress.neStats(neFile,configFile)
     else:
         print "Ne Datatable File not Found"

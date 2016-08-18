@@ -388,6 +388,7 @@ def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", signi
 def neStats(neFile, configFile = None, testFlag = False):
     if not  configFile:
         _neStatsHelper(neFile,0.05)
+        return
     configVals = neConfigRead(configFile)
     _neStatsHelper(neFile,configVals["alpha"], outFileName=configVals["statsFilename"],significantValue=configVals["sigSlope"],firstVal=configVals["startData"], testFlag= testFlag)
 
