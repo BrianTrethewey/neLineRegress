@@ -340,7 +340,7 @@ def neGrapher(neFile, configFile):
 def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantValue = 0, firstVal = 0,testFlag = False):
     tableFormat = "{:<30}{:<30}{:<30}\n"
     tableString =tableFormat.format("Slope","Intercept","Confidence Interval")
-    table = neFileRead(neFile)
+    table = neFileRead(neFile,firstVal)
     slopeVctr = []
     confidenceVctr = []
 
@@ -384,6 +384,8 @@ def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", signi
     outFile.write("\n\n")
     outFile.write(tableString)
     outFile.close()
+
+
 
 def neStats(neFile, configFile = None, testFlag = False):
     if not  configFile:
