@@ -11,6 +11,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 from numpy import mean, median
 import csv
+import sys
 
 #function to perform the linear regression and store the results in a dictionary
 def lineRegress(linePoints):
@@ -190,7 +191,6 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
             expectedSlope = _getExpectedLineValue(slopes)
 
         #make expected line for plotting
-        #todo WTF do i do here??
         lineVctrs.append(_getGraphLine(expectedSlope, expectedIntercept, xVctr))
         colorVctr.append("r")
         styleVctr.append("-")
@@ -198,7 +198,6 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
     for statDict in LineStats:
         slope = statDict["slope"]
         intercept = statDict["intercept"]
-        #todo WTF do i do here??
         linePoints  = _getGraphLine(slope, intercept, xVctr)
         lineVctrs.append(linePoints)
         colorVctr.append("b")
@@ -211,15 +210,19 @@ def neGraphMaker(pointsVctrs, expectedSlope = None,title = None, xlab = None, yL
     createGraph(lines, colorVctr=colors, styleVctr=styles, title=title, xlab=xlab,yLab=yLab, dest=dest, xLim = xLim, yLim = yLim)
 
 #reads in data fron neEst file outputs
-def neFileRead(filename):
+def neFileRead(filename, firstVal = 0):
     fileBuffer = open(filename, "rb")
     replicateData = csv.DictReader(fileBuffer, delimiter="\t", quotechar="\"")
     dataDict = {}
     popNum = 0
     for item in replicateData:
         replicateNum = item['original_file']
-        popNum = int(item['pop'])
+        pop =  item['pop']
+        popNum = int(pop)
+
         neEst = float(item['est_ne'])
+        if neEst == "NaN":
+            neEst = sys.maxint
         if  not replicateNum in dataDict:
             dataDict[replicateNum] = {}
         dataDict[replicateNum][popNum] = neEst
@@ -231,7 +234,7 @@ def neFileRead(filename):
         popKeys = replicateDict.keys()
         popKeys.sort()
         for popKey in popKeys:
-            if popKey !=1:
+            if popKey <firstVal:
                 #print popKey
                 replicateVctr.append((popKey,replicateDict[popKey]))
         resultTable.append(replicateVctr)
@@ -250,6 +253,11 @@ def neConfigRead(filename):
     xLims =None
     yLims = None
     autoFlag = False
+    startDataCollect = 0
+    alphaVal = 0.05
+    statFileOut = "neStats.out"
+    sigSlope = 0
+
     config = ConfigParser.ConfigParser()
     config.readfp(open(filename))
     if config.has_section("labels"):
@@ -282,7 +290,19 @@ def neConfigRead(filename):
         if config.has_option("limits", "yMin")and config.has_option("limits", "yMax"):
             yMin = config.getfloat("limits", "yMin")
             yMax = config.getfloat("limits", "yMax")
-            yLims =(yMin, yMax)
+            yLims = (yMin, yMax)
+    if config.has_section("confidence"):
+        if config.has_option("confidence","alpha"):
+            alphaVal = config.getfloat("confidence", "alpha")
+        if config.has_option("confidence","outputFilename"):
+            statFileOut = config.get("confidence","outputFilename")
+        if config.has_option("confidence", "significantSlope"):
+            sigSlope = config.getfloat("confidence", "significantSlope")
+
+    if config.has_section("data"):
+        if config.has_option("data","startCollect"):
+            startDataCollect = config.getint("data","startCollect")
+
     configDict["title"]=title
     configDict["xLab"] = xLab
     configDict["yLab"] = yLab
@@ -290,6 +310,10 @@ def neConfigRead(filename):
     configDict["dest"] = destination
     configDict["xLims"] = xLims
     configDict["yLims"] = yLims
+    configDict["alpha"] = alphaVal
+    configDict["startData"] = startDataCollect
+    configDict["statsFilename"] = statFileOut
+    configDict["sigSlope"] = sigSlope
     return configDict
 
 #master function to create a graph from neEstimation data.
@@ -297,11 +321,13 @@ def neConfigRead(filename):
 #configFile filepath to configureation file containting parameteres for the graph (see example.cfg and example1.cfg,
 #   this parameter and all feilds in the file are optional with what i considered the most relevant/base defaults)
 def neGrapher(neFile, configFile):
-    table = neFileRead(neFile)
+
     if not configFile:
+        table = neFileRead(neFile)
         neGraphMaker(table)
         return True
     configs = neConfigRead(configFile)
+    table = neFileRead(neFile,configs["startData"])
     neGraphMaker(table,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"])
 
 
@@ -311,7 +337,7 @@ def neGrapher(neFile, configFile):
 #outFileName: resulting file location for file results, will overwrite existing file.
 #significantValue: value of comparison w/ regards to slope. should be 0 for every test, but can be changed if needed.
 #testFlag: flag that disables file write and prints stats to console instead, used for test functions
-def neStats(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantValue = 0,testFlag = False):
+def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantValue = 0, firstVal = 0,testFlag = False):
     tableFormat = "{:<30}{:<30}{:<30}\n"
     tableString =tableFormat.format("Slope","Intercept","Confidence Interval")
     table = neFileRead(neFile)
@@ -353,11 +379,18 @@ def neStats(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantV
     outFile.write("Mean Regression Slope:\t\t"+str(meanSlope)+"\n")
     outFile.write("Meadian Regression Slope:\t"+str(medSlope)+"\n")
     outFile.write("\n")
-    outFile.write("Comparison to a slope of: "+str(significantValue))
+    outFile.write("Comparison to a slope of: "+str(significantValue)+"\n")
     outFile.write("Positive Slopes:\t"+str(positiveCount)+"\t\tNeutral Slopes:\t"+str(zeroCount)+"\t\tNegative Slopes:\t"+str(negativeCount))
     outFile.write("\n\n")
     outFile.write(tableString)
     outFile.close()
+
+def neStats(neFile, configFile = None, testFlag = False):
+    if not  configFile:
+        _neStatsHelper(neFile,0.05)
+    configVals = neConfigRead(configFile)
+    _neStatsHelper(neFile,configVals["alpha"], outFileName=configVals["statsFilename"],significantValue=configVals["sigSlope"],firstVal=configVals["startData"], testFlag= testFlag)
+
 
 if __name__ == "__main__":
     #Tests
@@ -552,5 +585,5 @@ if __name__ == "__main__":
     print neConfigRead("example1.cfg")
     print "test master methods"
     neGrapher("testData.txt","example1.cfg")
-    neStats("testData.txt",0.1,testFlag=True)
-    neStats("testData.txt",0.05)
+    _neStatsHelper("testData.txt",0.1,testFlag=True)
+    _neStatsHelper("testData.txt",0.05)
