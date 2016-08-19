@@ -339,7 +339,8 @@ def neGrapher(neFile, configFile):
 #testFlag: flag that disables file write and prints stats to console instead, used for test functions
 def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", significantValue = 0, firstVal = 0,testFlag = False):
     tableFormat = "{:<30}{:<30}{:<30}\n"
-    tableString =tableFormat.format("Slope","Intercept","Confidence Interval")
+    confPercent = (1 - confidenceAlpha)*100
+    tableString =tableFormat.format("Slope","Intercept","Confidence Interval("+str(confPercent)+"%)")
     table = neFileRead(neFile,firstVal)
     slopeVctr = []
     confidenceVctr = []
