@@ -142,10 +142,25 @@ def _MSE(slope, intercept,linePoints):
 
 
 
-#helper function to get means, extracted in case changes or medians are wanted instead
-def _getExpectedLineValue(vctr):
+#helper function to get line slopes, extracted in case changes or medians are wanted instead
+def _getExpectedLineSlope(vctr):
     result = mean(vctr)
     return result
+
+def _getExpectedLineStats(slopes, intercepts, xVctr,expectedSlope = None):
+    xMean = mean(xVctr)
+    if expectedSlope =="auto":
+        expectedSlope = _getExpectedLineSlope(slopes)
+
+    midpoints = []
+    for lineIdx in range(len(slopes)):
+        slope = slopes[lineIdx]
+        intercept = intercepts[lineIdx]
+        midpoints.append(slope*xMean+intercept)
+    midpoint = mean(midpoints)
+    expectedIntercept = float(midpoint)-float(expectedSlope*xMean)
+    return expectedSlope, expectedIntercept
+
 
 # xVctr:        List/Array of values representing the X axis(will be shared between all YPoints arrays)
 # yPoints:      List/Array of Arrays composed of the Y values at each value in xVctr for each datastream
@@ -174,6 +189,8 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
     colorVctr = []
     styleVctr = []
 
+
+
     #creates expected slope line for comparisons
     if expectedSlope:
         #get all slope and intercept values to get means
@@ -183,12 +200,10 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
             slopes.append(statDict["slope"])
             intercepts.append(statDict["intercept"])
 
-        #get average intercept, this is important for placing the expected slope line
-        expectedIntercept = _getExpectedLineValue(intercepts)
+        #get expected line Stats
+        expectedSlope,expectedIntercept = _getExpectedLineStats(slopes, intercepts, xVctr,expectedSlope)
 
-        #get auto generated expected SLope
-        if expectedSlope == "auto":
-            expectedSlope = _getExpectedLineValue(slopes)
+
 
         #make expected line for plotting
         lineVctrs.append(_getGraphLine(expectedSlope, expectedIntercept, xVctr))
