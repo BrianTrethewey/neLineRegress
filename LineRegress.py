@@ -34,8 +34,8 @@ def _getGraphLine(slope, intercept, xVctr):
 
 
 def _pointsToVectors(points):
-    xVctr = [point[0] for point in points]
-    yVctr = [point[1] for point in points]
+    #zip with a * preforms the inverse
+    xVctr , yVctr = zip(*points)
     return xVctr, yVctr
 
 
@@ -168,14 +168,15 @@ def _getExpectedLineStats(slopes, intercepts, xVctr,expectedSlope = None):
 #       if None(default) no line produced
 #       if value creates a line with that slope in red
 #       if "auto" creates a line with slope =  average slope of all lines
-def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
+def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None, popTable = None):
     #get linear regression stats for all datasets
     LineStats = []
     for line in dataVctrs:
         data = lineRegress(line)
         LineStats.append(data)
-
+    #flatten the array
     allpoints = [val for sublist in dataVctrs  for val in sublist]
+    #unzip to obtain x and y value vectors for all points
     xVals, yVals = zip(*allpoints)
 
     minX = min(xVals)
@@ -189,26 +190,38 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
     colorVctr = []
     styleVctr = []
 
-
-
     #creates expected slope line for comparisons
     if expectedSlope:
-        #get all slope and intercept values to get means
-        slopes = []
-        intercepts = []
-        for statDict in LineStats:
-            slopes.append(statDict["slope"])
-            intercepts.append(statDict["intercept"])
+        expectedPoints = []
+        if expectedSlope == "pop":
+            if popTable:
+                averagePopPoints = []
+                allpoints = [val for sublist in popTable for val in sublist]
+                xVals, yVals = zip(*allpoints)
+                xSet = set(xVals)
+                for x in xSet:
+                    pointYSet = [point[1] for point in allpoints if point[0] == x]
+                    averageY = mean(pointYSet)
+                    averagePopPoints.append((x,averageY))
+            expectedPoints = averagePopPoints
+        else:
+            #get all slope and intercept values to get means
+            slopes = []
+            intercepts = []
+            for statDict in LineStats:
+                slopes.append(statDict["slope"])
+                intercepts.append(statDict["intercept"])
 
-        #get expected line Stats
-        expectedSlope,expectedIntercept = _getExpectedLineStats(slopes, intercepts, xVctr,expectedSlope)
-
+            #get expected line Stats
+            expectedSlope,expectedIntercept = _getExpectedLineStats(slopes, intercepts, xVctr,expectedSlope)
+            expectedPoints = _getGraphLine(expectedSlope, expectedIntercept, xVctr)
 
 
         #make expected line for plotting
-        lineVctrs.append(_getGraphLine(expectedSlope, expectedIntercept, xVctr))
-        colorVctr.append("r")
-        styleVctr.append("-")
+        if len(expectedPoints)>0:
+            lineVctrs.append(expectedPoints)
+            colorVctr.append("r")
+            styleVctr.append("-")
 
     for statDict in LineStats:
         slope = statDict["slope"]
@@ -220,8 +233,8 @@ def _NeRegressionGraphCalc(dataVctrs, expectedSlope = None):
     return lineVctrs, colorVctr,styleVctr
 
 #combines linear regression and create graph into one function
-def neGraphMaker(pointsVctrs, expectedSlope = None,title = None, xlab = None, yLab= None, dest = "show", xLim = None, yLim = None):
-    lines, colors, styles = _NeRegressionGraphCalc(pointsVctrs, expectedSlope)
+def neGraphMaker(pointsVctrs, expectedSlope = None,title = None, xlab = None, yLab= None, dest = "show", xLim = None, yLim = None, countTable = None):
+    lines, colors, styles = _NeRegressionGraphCalc(pointsVctrs, expectedSlope,countTable)
     createGraph(lines, colorVctr=colors, styleVctr=styles, title=title, xlab=xlab,yLab=yLab, dest=dest, xLim = xLim, yLim = yLim)
 
 #reads in data fron neEst file outputs
@@ -229,31 +242,39 @@ def neFileRead(filename, firstVal = 0):
     fileBuffer = open(filename, "rb")
     replicateData = csv.DictReader(fileBuffer, delimiter="\t", quotechar="\"")
     dataDict = {}
+    popDict={}
     popNum = 0
     for item in replicateData:
-        replicateNum = item['original_file']
+        sourceName = item['original_file']
         pop =  item['pop']
         popNum = int(pop)
-
+        individualCount = int(item["indiv_count"])
         neEst = float(item['est_ne'])
-        if neEst == "NaN":
-            neEst = sys.maxint
-        if  not replicateNum in dataDict:
-            dataDict[replicateNum] = {}
-        dataDict[replicateNum][popNum] = neEst
+        #if neEst == "NaN":
+        #    neEst = sys.maxint
+        if  not sourceName in dataDict:
+            dataDict[sourceName] = {}
+            popDict[sourceName] = {}
+        dataDict[sourceName][popNum] = neEst
+        popDict[sourceName][popNum]=individualCount
     replicateKeys = dataDict.keys()
     resultTable = []
+    individualCountTable = []
     for replicate in replicateKeys:
         replicateVctr = []
+        individualCountVctr = []
         replicateDict = dataDict[replicate]
+        individualCountDict = popDict[replicate]
         popKeys = replicateDict.keys()
         popKeys.sort()
         for popKey in popKeys:
             if popKey >=firstVal:
                 #print popKey
                 replicateVctr.append((popKey,replicateDict[popKey]))
+                individualCountVctr.append((popKey,individualCountDict[popKey]))
         resultTable.append(replicateVctr)
-    return resultTable
+        individualCountTable.append(individualCountVctr)
+    return resultTable,individualCountTable
 
 
 #Method to read in a graph config file and return a dictionary of
@@ -287,16 +308,23 @@ def neConfigRead(filename):
         if destType != "show":
             destination = config.get("destination","destFile")
     if config.has_section("comparison"):
-        if config.has_option("comparison", "auto"):
-            autoFlag = config.getboolean("comparison", "auto")
-            setExpected = "auto"
-        if not autoFlag:
+        valueFlag = True
+        setExpected = None
+        if config.has_option("comparison", "type"):
+            comparisonType = config.get("comparison", "type")
+            if comparisonType == "auto"  or comparisonType == "Auto"or comparisonType == "pop" or comparisonType == "Pop":
+                setExpected = comparisonType
+                valueFlag = False
+            elif comparisonType == "None" or comparisonType == "none":
+                valueFlag = False
+        if  valueFlag:
             if config.has_option("comparison", "lambda"):
                 lambdaValue = config.getfloat("comparison", "lambda")
                 setExpected = lambdaValue-1
             if config.has_option("comparison", "expectedSlope"):
                 expectedSlope = config.getfloat("comparison", "expectedSlope")
                 setExpected =  expectedSlope
+
     if config.has_section("limits"):
         if config.has_option("limits", "xMin") and config.has_option("limits", "xMax"):
             xMin = config.getfloat("limits", "xMin")
@@ -338,12 +366,12 @@ def neConfigRead(filename):
 def neGrapher(neFile, configFile):
 
     if not configFile:
-        table = neFileRead(neFile)
+        table , countsTable= neFileRead(neFile)
         neGraphMaker(table)
         return True
     configs = neConfigRead(configFile)
-    table = neFileRead(neFile,configs["startData"])
-    neGraphMaker(table,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"])
+    table,countsTable = neFileRead(neFile,configs["startData"])
+    neGraphMaker(table,expectedSlope=configs["expected"],title= configs['title'],xlab=configs["xLab"],yLab=configs["yLab"],dest=configs["dest"],xLim=configs["xLims"],yLim=configs["yLims"], countTable = countsTable)
 
 
 #master function for creating a table of confidence intervals form neEstimation data
@@ -356,7 +384,7 @@ def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", signi
     tableFormat = "{:<30}{:<30}{:<30}\n"
     confPercent = (1 - confidenceAlpha)*100
     tableString =tableFormat.format("Slope","Intercept","Confidence Interval("+str(confPercent)+"%)")
-    table = neFileRead(neFile,firstVal)
+    table, countsTable = neFileRead(neFile,firstVal)
     slopeVctr = []
     confidenceVctr = []
 
@@ -579,9 +607,10 @@ if __name__ == "__main__":
     testArray.sort()
     print  testArray
 
-    table = neFileRead("testData.txt")
+    table, countsTable = neFileRead("testData.txt")
 
     print table
+    print countsTable
 
 
 
@@ -597,7 +626,7 @@ if __name__ == "__main__":
     configwrite.set("destination","desttype", "PDF")
     configwrite.set("destination","destFile", "test.pdf")
     configwrite.add_section("comparison")
-    configwrite.set("comparison", "auto", "True")
+    configwrite.set("comparison", "type", "pop")
     configwrite.set("comparison", "expectedSlope", -0.1)
     configwrite.add_section("data")
     configwrite.set("data", "startCollect", 2)
