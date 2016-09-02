@@ -258,7 +258,7 @@ def neFileRead(filename, firstVal = 0):
         dataDict[sourceName][popNum] = neEst
         popDict[sourceName][popNum]=individualCount
     replicateKeys = dataDict.keys()
-    resultTable = []
+    resultTable = {}
     individualCountTable = []
     for replicate in replicateKeys:
         replicateVctr = []
@@ -272,7 +272,7 @@ def neFileRead(filename, firstVal = 0):
                 #print popKey
                 replicateVctr.append((popKey,replicateDict[popKey]))
                 individualCountVctr.append((popKey,individualCountDict[popKey]))
-        resultTable.append(replicateVctr)
+        resultTable[replicate] = replicateVctr
         individualCountTable.append(individualCountVctr)
     return resultTable,individualCountTable
 
@@ -423,7 +423,7 @@ def _neStatsHelper(neFile,confidenceAlpha, outFileName = "neStatsOut.txt", signi
     outFile.write("Mean Regression Slope:\t\t"+str(meanSlope)+"\n")
     outFile.write("Meadian Regression Slope:\t"+str(medSlope)+"\n")
     outFile.write("\n")
-    outFile.write("Comparison to a slope of: "+str(significantValue)+"\n")
+    outFile.write("Comparison to a slope of: "+str(significantValue)+"  at alpha =  "+str(confidenceAlpha)+"\n")
     outFile.write("Positive Slopes:\t"+str(positiveCount)+"\t\tNeutral Slopes:\t"+str(zeroCount)+"\t\tNegative Slopes:\t"+str(negativeCount))
     outFile.write("\n\n")
     outFile.write(tableString)
